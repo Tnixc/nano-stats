@@ -1,6 +1,6 @@
 // macos/Sources/UI/MenuBarView.swift
-import SwiftUI
 import Combine
+import SwiftUI
 
 struct MenuBarView: View {
     @ObservedObject var memoryMonitor: MemoryDataModel
@@ -120,15 +120,15 @@ struct MemoryStatsRow: View {
                     Text("Pressure")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
-                    
+
                     Spacer()
-                    
+
                     Text("\(Int(usagePercentage))%")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.primary)
                         .monospacedDigit()
                 }
-                
+
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 3)
@@ -151,41 +151,41 @@ struct MemoryStatsRow: View {
                         value: formatBytes(breakdown.active_bytes),
                         showBar: false
                     )
-                    
+
                     MemoryDetailRow(
                         label: "Wired",
                         value: formatBytes(breakdown.wired_bytes),
                         showBar: false
                     )
-                    
+
                     MemoryDetailRow(
                         label: "Available",
                         value: formatBytes(breakdown.free_bytes),
                         showBar: false
                     )
-                    
+
                     MemoryDetailRow(
                         label: "Compressed",
                         value: formatBytes(breakdown.compressed_bytes),
                         showBar: false
                     )
-                    
+
                     MemoryDetailRow(
                         label: "Swap File",
                         value: formatBytes(breakdown.swap_used_bytes),
                         showBar: true,
-                        barPercentage: breakdown.swap_total_bytes > 0 ? 
+                        barPercentage: breakdown.swap_total_bytes > 0 ?
                             Double(breakdown.swap_used_bytes) / Double(breakdown.swap_total_bytes) * 100.0 : 0
                     )
                 }
                 .padding(.horizontal, 16)
             }
-            
+
             Spacer().frame(height: 4)
         }
         .padding(.bottom, 12)
     }
-    
+
     private func formatBytes(_ bytes: UInt64) -> String {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useMB]
@@ -200,23 +200,23 @@ struct MemoryDetailRow: View {
     let value: String
     let showBar: Bool
     var barPercentage: Double = 0
-    
+
     var body: some View {
         HStack {
             Text(label)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 100, alignment: .leading)
-            
+
             Spacer()
-            
+
             Text(value)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
-            
+
             if showBar {
-                GeometryReader { geometry in
+                GeometryReader { _ in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2)
                             .fill(Color.secondary.opacity(0.2))
@@ -268,13 +268,13 @@ struct CPUStatsRow: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 60, alignment: .leading)
-                
+
                 Text("\(Int(userPercentage))%")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
                     .monospacedDigit()
                     .frame(width: 40, alignment: .trailing)
-                
+
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 3)
@@ -296,13 +296,13 @@ struct CPUStatsRow: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 60, alignment: .leading)
-                
+
                 Text("\(Int(systemPercentage))%")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
                     .monospacedDigit()
                     .frame(width: 40, alignment: .trailing)
-                
+
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 3)
@@ -326,14 +326,14 @@ struct CPUStatsRow: View {
 
 struct CPUSparklineChart: View {
     let history: [Double]
-    
+
     var body: some View {
         GeometryReader { geometry in
             let maxValue = max(history.max() ?? 1.0, 1.0)
             let barWidth = geometry.size.width / CGFloat(history.count)
-            
+
             HStack(alignment: .bottom, spacing: 1) {
-                ForEach(Array(history.enumerated()), id: \.offset) { index, value in
+                ForEach(Array(history.enumerated()), id: \.offset) { _, value in
                     RoundedRectangle(cornerRadius: 1)
                         .fill(Color.orange)
                         .frame(
@@ -510,7 +510,7 @@ public class MemoryDataModel: ObservableObject {
                 self.cpuUserPercentage = cpuUsage.userPercentage
                 self.cpuSystemPercentage = cpuUsage.systemPercentage
                 self.cpuTotalPercentage = cpuUsage.totalPercentage
-                
+
                 // Update CPU history
                 self.cpuHistory.removeFirst()
                 self.cpuHistory.append(cpuUsage.totalPercentage)

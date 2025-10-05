@@ -70,11 +70,11 @@ public final class SystemMemoryMonitor {
         var swapUsage = xsw_usage()
         var size = MemoryLayout<xsw_usage>.size
         let result = sysctlbyname("vm.swapusage", &swapUsage, &size, nil, 0)
-        
+
         guard result == 0 else {
             return (0, 0)
         }
-        
+
         return (swapUsage.xsu_total, swapUsage.xsu_used)
     }
 
