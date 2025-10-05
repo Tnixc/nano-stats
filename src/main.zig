@@ -17,4 +17,5 @@ pub fn main() !void {
 
     // Run the application (blocks until termination)
     nano_stats_run(app);
+
 }

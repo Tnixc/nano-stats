@@ -72,8 +72,8 @@ public final class SystemMemoryMonitor {
       }
     }
 
-    guard result == KERN_SUCCESS, count == host_vm_info64_count else {
-      print("Error: host_statistics64 failed. Result: \(result), Count: \(count)")
+    guard result == KERN_SUCCESS else {
+      print("Error: host_statistics64 failed. Result: \(result)")
       return nil
     }
 

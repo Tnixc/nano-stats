@@ -1,6 +1,7 @@
 // macos/Sources/App/NanoStatsApp.swift
 import AppKit
 import Foundation
+import QuartzCore
 
 /// Main application class that manages the status bar item and menu.
 public final class NanoStatsApp: NSObject, NSMenuDelegate {
@@ -12,6 +13,10 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
   private let process_menu: NSMenu
   private var total_physical_memory_bytes: UInt64 = 0
   private var status_view: MemoryStatusView?
+  // Memory usage history for sparkline
+  private var usage_history: [Double] = []
+  private let max_history_points: Int = 180
+
 
   // Monitors
   private let memory_monitor = SystemMemoryMonitor()
@@ -19,7 +24,7 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
 
   // Configuration
   private let memory_update_interval_seconds: TimeInterval = 2.0
-  private let top_process_count: Int = 10
+  private let top_process_count: Int = 5
   private let status_item_width: CGFloat = 40.0
 
   // State
@@ -45,6 +50,14 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
     if ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] == nil {
       self.app.setActivationPolicy(.accessory)
     }
+
+    // Observe appearance changes to update UI
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(appearanceChanged),
+      name: Notification.Name("NSApplicationDidChangeEffectiveAppearanceNotification"),
+      object: nil
+    )
 
     updateMemoryDisplay()
   }
@@ -124,6 +137,9 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
   private func buildMenu() {
     process_menu.removeAllItems()
 
+    // Ensure enough width for the sparkline menu item
+    process_menu.minimumWidth = max(process_menu.minimumWidth, 280)
+
     let formatter = ByteCountFormatter()
     formatter.allowedUnits = [.useKB, .useMB, .useGB]
     formatter.countStyle = .memory
@@ -142,7 +158,7 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
       process_menu.addItem(total_item)
 
       // Visual indicator
-      addMemoryUsageBar(percentage: breakdown.usage_percentage)
+      addMemoryUsageSparkline()
 
       // Key metrics users care about
       addDisabledMenuItem(
@@ -203,14 +219,12 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
         let memory_str = formatter.string(fromByteCount: Int64(process.memory_usage_bytes))
 
         // Create menu item with app name and memory as subtitle
-        let menu_item = NSMenuItem(title: process.name, action: nil, keyEquivalent: "")
+        let percentage_str = String(format: "%.1f%%", process.memory_usage_percentage)
+        let title = "\(process.name) — \(memory_str) (\(percentage_str))"
+        let menu_item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
 
         // Use subtitle if available (macOS 11+), otherwise fall back to title with dash
-        if #available(macOS 11.0, *) {
-          menu_item.subtitle = memory_str
-        } else {
-          menu_item.title = "\(process.name) — \(memory_str)"
-        }
+
 
         // Add to menu
         process_menu.addItem(menu_item)
@@ -246,36 +260,91 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
   }
 
   private func addMemoryUsageBar(percentage: Double) {
-    // Create a visual indicator of memory usage
-    let bar_view = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 18))
+    // Full-width system-colored memory bar with subtle gradient sparkle
+    let width = max(process_menu.minimumWidth, 280)
+    let height: CGFloat = 28
 
-    // Background track
-    let track = NSView(frame: NSRect(x: 16, y: 7, width: 168, height: 4))
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+
+    let marginX: CGFloat = 12
+    let barHeight: CGFloat = 6
+    let trackX = marginX
+    let trackWidth = width - (marginX * 2)
+    let trackY = (height - barHeight) / 2
+
+    // Track
+    let track = NSView(frame: NSRect(x: trackX, y: trackY, width: trackWidth, height: barHeight))
     track.wantsLayer = true
-    track.layer?.backgroundColor = NSColor.tertiaryLabelColor.cgColor
-    track.layer?.cornerRadius = 2
+    track.layer?.cornerRadius = barHeight / 2
+    track.layer?.backgroundColor = NSColor.quaternaryLabelColor.withAlphaComponent(0.25).cgColor
 
-    // Filled portion
-    let fill_width = Int((percentage / 100.0) * 168)
-    let fill = NSView(frame: NSRect(x: 16, y: 7, width: fill_width, height: 4))
+    // Fill
+    let fillWidth = max(0, min(trackWidth, (CGFloat(percentage) / 100.0) * trackWidth))
+    let fill = NSView(frame: NSRect(x: trackX, y: trackY, width: fillWidth, height: barHeight))
     fill.wantsLayer = true
+    fill.layer?.cornerRadius = barHeight / 2
 
-    // Color based on usage
+    let baseColor: NSColor
     if percentage > 85 {
-      fill.layer?.backgroundColor = NSColor.systemRed.cgColor
+      baseColor = NSColor.systemRed
     } else if percentage > 60 {
-      fill.layer?.backgroundColor = NSColor.systemOrange.cgColor
+      baseColor = NSColor.systemOrange
+    } else if #available(macOS 10.14, *) {
+      baseColor = NSColor.controlAccentColor
     } else {
-      fill.layer?.backgroundColor = NSColor.systemBlue.cgColor
+      baseColor = NSColor.systemBlue
     }
 
-    fill.layer?.cornerRadius = 2
+    if let layer = fill.layer {
+      let gradient = CAGradientLayer()
+      gradient.frame = layer.bounds
+      gradient.colors = [
+        baseColor.withAlphaComponent(0.9).cgColor,
+        baseColor.withAlphaComponent(0.35).cgColor
+      ]
+      gradient.startPoint = CGPoint(x: 0, y: 0.5)
+      gradient.endPoint = CGPoint(x: 1, y: 0.5)
+      gradient.cornerRadius = barHeight / 2
 
-    bar_view.addSubview(track)
-    bar_view.addSubview(fill)
+      // Subtle sparkle/glow
+      layer.shadowColor = baseColor.withAlphaComponent(0.6).cgColor
+      layer.shadowOpacity = 0.6
+      layer.shadowRadius = 3
+      layer.shadowOffset = .zero
+
+      layer.addSublayer(gradient)
+      layer.masksToBounds = true
+      layer.backgroundColor = NSColor.clear.cgColor
+    }
+
+    container.addSubview(track)
+    container.addSubview(fill)
 
     let menu_item = NSMenuItem()
-    menu_item.view = bar_view
+    menu_item.view = container
+    process_menu.addItem(menu_item)
+  }
+  
+  private func addMemoryUsageSparkline() {
+    let width = max(process_menu.minimumWidth, 280)
+    let height: CGFloat = 28
+    let marginX: CGFloat = 8
+    let marginY: CGFloat = 4
+    let sparkFrame = NSRect(
+      x: marginX,
+      y: marginY,
+      width: width - (marginX * 2),
+      height: height - (marginY * 2)
+    )
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+    let spark = SparklineView(frame: sparkFrame)
+    spark.yScaleMode = SparklineView.YScaleMode.unit
+    spark.lineColorMode = SparklineView.LineColorMode.memoryPressure
+    spark.showsGradientFill = true
+    spark.setValues(usage_history, capToMax: true)
+    container.addSubview(spark)
+    let menu_item = NSMenuItem()
+    menu_item.view = container
     process_menu.addItem(menu_item)
   }
 
@@ -297,6 +366,12 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
 
   private func updateMemoryDisplay() {
     if let breakdown = memory_monitor.fetchMemoryBreakdown() {
+      let v = breakdown.usage_percentage / 100.0
+      usage_history.append(v)
+      if usage_history.count > max_history_points {
+        usage_history.removeFirst(usage_history.count - max_history_points)
+      }
+
       if let status_view = self.status_view {
         status_view.updatePercentage(breakdown.usage_percentage)
       } else if let button = self.status_item.button {
@@ -336,5 +411,10 @@ public final class NanoStatsApp: NSObject, NSMenuDelegate {
     if response == NSApplication.ModalResponse.alertSecondButtonReturn {
       openActivityMonitor()
     }
+  }
+
+  @objc private func appearanceChanged() {
+    // Update the status view when appearance changes
+    updateMemoryDisplay()
   }
 }

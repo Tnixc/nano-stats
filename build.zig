@@ -21,6 +21,7 @@ pub fn build(b: *std.Build) void {
         "macos/Sources/UI/StatusBarView.swift",
         "macos/Sources/UI/MenuBuilder.swift",
         "macos/Sources/UI/ProcessListMenu.swift",
+        "macos/Sources/UI/SparklineView.swift",
         // App files
         "macos/Sources/App/NanoStatsApp.swift",
         // C Interface
@@ -32,10 +33,16 @@ pub fn build(b: *std.Build) void {
         "-module-name",
         "NanoStats",
         "-parse-as-library",
+        "-Xlinker",
+        "-install_name",
+        "-Xlinker",
+        "@rpath/libNanoStats.dylib",
         "-framework",
         "AppKit",
         "-framework",
         "Foundation",
+        "-framework",
+        "QuartzCore",
     });
 
     // Copy header to the include directory
@@ -55,10 +62,12 @@ pub fn build(b: *std.Build) void {
 
     // Build the Zig executable
     const exe = b.addExecutable(.{
-        .name = "nano_stats",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .name = "NanoStats",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     // Add the Swift framework
@@ -74,6 +83,9 @@ pub fn build(b: *std.Build) void {
     // Add framework search paths
     exe.addFrameworkPath(.{ .cwd_relative = "/System/Library/Frameworks" });
     exe.addSystemIncludePath(.{ .cwd_relative = "/usr/include" });
+
+    // Set rpath to find dylib in the same directory as the executable
+    exe.addRPath(.{ .cwd_relative = "@executable_path" });
 
     // Ensure Swift build happens before Zig build
     exe.step.dependOn(&swift_build.step);
@@ -92,4 +104,35 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    // Create the app bundle
+    const app_step = b.step("app", "Build the .app bundle");
+    app_step.dependOn(b.getInstallStep());
+
+    const mkdir_macos = b.addSystemCommand(&[_][]const u8{
+        "mkdir", "-p", "NanoStats.app/Contents/MacOS",
+    });
+    const mkdir_resources = b.addSystemCommand(&[_][]const u8{
+        "mkdir", "-p", "NanoStats.app/Contents/Resources",
+    });
+    mkdir_resources.step.dependOn(&mkdir_macos.step);
+
+    const cp_exe = b.addSystemCommand(&[_][]const u8{
+        "cp", "zig-out/bin/NanoStats", "NanoStats.app/Contents/MacOS/",
+    });
+    cp_exe.step.dependOn(&mkdir_resources.step);
+    cp_exe.step.dependOn(&exe.step);
+
+    const cp_plist = b.addSystemCommand(&[_][]const u8{
+        "cp", "macos/NanoStats-Info.plist", "NanoStats.app/Contents/Info.plist",
+    });
+    cp_plist.step.dependOn(&cp_exe.step);
+
+    const cp_dylib = b.addSystemCommand(&[_][]const u8{
+        "cp", "zig-out/lib/libNanoStats.dylib", "NanoStats.app/Contents/MacOS/",
+    });
+    cp_dylib.step.dependOn(&cp_plist.step);
+    cp_dylib.step.dependOn(&swift_build.step);
+
+    app_step.dependOn(&cp_dylib.step);
 }
