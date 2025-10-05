@@ -1,4 +1,3 @@
-// build.zig
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
@@ -14,18 +13,15 @@ pub fn build(b: *std.Build) void {
     const swift_build = b.addSystemCommand(&[_][]const u8{
         "swiftc",
         // Core files
-        "macos/Sources/Core/Memory/MemoryTypes.swift",
-        "macos/Sources/Core/Memory/SystemMemoryMonitor.swift",
-        "macos/Sources/Core/Memory/ProcessMemoryMonitor.swift",
+        "src/macos/Sources/Core/Memory/MemoryTypes.swift",
+        "src/macos/Sources/Core/Memory/SystemMemoryMonitor.swift",
+        "src/macos/Sources/Core/Memory/ProcessMemoryMonitor.swift",
         // UI files
-        "macos/Sources/UI/StatusBarView.swift",
-        "macos/Sources/UI/MenuBuilder.swift",
-        "macos/Sources/UI/ProcessListMenu.swift",
-        "macos/Sources/UI/SparklineView.swift",
+        "src/macos/Sources/UI/MenuBarView.swift",
         // App files
-        "macos/Sources/App/NanoStatsApp.swift",
+        "src/macos/Sources/App/NanoStatsApp.swift",
         // C Interface
-        "macos/Sources/C/CInterface.swift",
+        "src/macos/Sources/C/CInterface.swift",
         "-emit-library",
         "-o",
         "zig-out/lib/libNanoStats.dylib",
@@ -43,6 +39,8 @@ pub fn build(b: *std.Build) void {
         "Foundation",
         "-framework",
         "QuartzCore",
+        "-framework",
+        "SwiftUI",
     });
 
     // Copy header to the include directory
@@ -50,10 +48,10 @@ pub fn build(b: *std.Build) void {
         "mkdir", "-p", "zig-out/include",
     });
     const copy_header = b.addSystemCommand(&[_][]const u8{
-        "cp", "include/nano_stats.h", "zig-out/include/",
+        "cp", "src/include/nano_stats.h", "zig-out/include/",
     });
     const copy_modulemap = b.addSystemCommand(&[_][]const u8{
-        "cp", "include/module.modulemap", "zig-out/include/",
+        "cp", "src/include/module.modulemap", "zig-out/include/",
     });
 
     copy_header.step.dependOn(&mkdir_cmd.step);
@@ -90,7 +88,7 @@ pub fn build(b: *std.Build) void {
     // Ensure Swift build happens before Zig build
     exe.step.dependOn(&swift_build.step);
 
-    const plist_install = b.addInstallFile(b.path("macos/NanoStats-Info.plist"), "bin/NanoStats-Info.plist");
+    const plist_install = b.addInstallFile(b.path("src/macos/NanoStats-Info.plist"), "bin/NanoStats-Info.plist");
     b.getInstallStep().dependOn(&plist_install.step);
 
     b.installArtifact(exe);
@@ -124,7 +122,7 @@ pub fn build(b: *std.Build) void {
     cp_exe.step.dependOn(&exe.step);
 
     const cp_plist = b.addSystemCommand(&[_][]const u8{
-        "cp", "macos/NanoStats-Info.plist", "NanoStats.app/Contents/Info.plist",
+        "cp", "src/macos/NanoStats-Info.plist", "NanoStats.app/Contents/Info.plist",
     });
     cp_plist.step.dependOn(&cp_exe.step);
 
