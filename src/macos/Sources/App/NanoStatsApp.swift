@@ -1,6 +1,6 @@
 // macos/Sources/App/NanoStatsApp.swift
-import SwiftUI
 import AppKit
+import SwiftUI
 
 /// Main application class that manages the status bar item and SwiftUI menu.
 public final class NanoStatsApp: NSObject {
@@ -11,13 +11,13 @@ public final class NanoStatsApp: NSObject {
     private var memoryUpdateTimer: Timer?
     private var popover: NSPopover?
 
-    public init(withTitle title: String) {
+    public init(withTitle _: String) {
         assert(Thread.isMainThread, "NanoStatsApp must be initialized on the main thread.")
 
-        self.app = NSApplication.shared
-        self.statusBar = NSStatusBar.system
-        self.statusItem = self.statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        self.memoryDataModel = MemoryDataModel()
+        app = NSApplication.shared
+        statusBar = NSStatusBar.system
+        statusItem = statusBar.statusItem(withLength: NSStatusItem.variableLength)
+        memoryDataModel = MemoryDataModel()
 
         super.init()
 
@@ -25,7 +25,7 @@ public final class NanoStatsApp: NSObject {
         setupPopover()
 
         if ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] == nil {
-            self.app.setActivationPolicy(.accessory)
+            app.setActivationPolicy(.accessory)
         }
 
         // Start monitoring
@@ -38,24 +38,42 @@ public final class NanoStatsApp: NSObject {
             return
         }
 
-        // Create SwiftUI view for status bar
-        let statusView = StatusBarLabel(memoryData: memoryDataModel)
-        let hostingView = NSHostingView(rootView: statusView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 60, height: 22)
-
-        button.subviews.forEach { $0.removeFromSuperview() }
-        button.addSubview(hostingView)
-
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: button.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: button.bottomAnchor),
-        ])
+        // Set initial title
+        updateStatusBarTitle()
 
         button.target = self
         button.action = #selector(statusItemClicked)
+        button.isEnabled = true
+    }
+
+    private func updateStatusBarTitle() {
+        guard let button = statusItem.button else { return }
+
+        let percentage = Int(memoryDataModel.usagePercentage)
+        let icon: String
+        let color: NSColor
+
+        if memoryDataModel.usagePercentage > 85 {
+            icon = "􀫖" // memorychip.fill
+            color = .systemRed
+        } else if memoryDataModel.usagePercentage > 70 {
+            icon = "􀫖"
+            color = .systemOrange
+        } else if memoryDataModel.usagePercentage > 50 {
+            icon = "􀫖"
+            color = .systemYellow
+        } else {
+            icon = "􀫖"
+            color = .labelColor
+        }
+
+        let text = "\(icon) \(percentage)%"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold),
+            .foregroundColor: color,
+        ]
+
+        button.attributedTitle = NSAttributedString(string: text, attributes: attributes)
     }
 
     private func setupPopover() {
@@ -86,10 +104,12 @@ public final class NanoStatsApp: NSObject {
     private func startMemoryMonitoring() {
         // Initial update
         memoryDataModel.refresh()
+        updateStatusBarTitle()
 
         // Set up timer for periodic updates (every 2 seconds)
         memoryUpdateTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             self?.memoryDataModel.refresh()
+            self?.updateStatusBarTitle()
         }
 
         if let timer = memoryUpdateTimer {
@@ -100,53 +120,12 @@ public final class NanoStatsApp: NSObject {
     public func run() {
         assert(Thread.isMainThread, "run() must be called on the main thread.")
         print("NanoStats is running. Check your menu bar!")
-        self.app.run()
+        app.run()
     }
 
     public func cleanup() {
         memoryUpdateTimer?.invalidate()
         memoryUpdateTimer = nil
         popover?.performClose(nil)
-    }
-}
-
-// MARK: - Status Bar Label
-
-struct StatusBarLabel: View {
-    @ObservedObject var memoryData: MemoryDataModel
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: iconForPercentage(memoryData.usagePercentage))
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(colorForPercentage(memoryData.usagePercentage))
-
-            Text("\(Int(memoryData.usagePercentage))%")
-                .font(.system(size: 13, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(colorForPercentage(memoryData.usagePercentage))
-        }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-    }
-
-    private func iconForPercentage(_ percentage: Double) -> String {
-        if percentage > 85 {
-            return "memorychip.fill"
-        } else {
-            return "memorychip"
-        }
-    }
-
-    private func colorForPercentage(_ percentage: Double) -> Color {
-        if percentage > 85 {
-            return .red
-        } else if percentage > 70 {
-            return .orange
-        } else if percentage > 50 {
-            return .yellow
-        } else {
-            return .primary
-        }
     }
 }
