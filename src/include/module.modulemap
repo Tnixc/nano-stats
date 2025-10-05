@@ -1,6 +1,0 @@
-// include/module.modulemap
-module NanoStats {
-    umbrella header "nano_stats.h"
-    export *
-}
-

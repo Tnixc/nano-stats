@@ -1,5 +1,6 @@
 // macos/Sources/UI/MenuBarView.swift
 import SwiftUI
+import Combine
 
 struct MenuBarView: View {
     @ObservedObject var memoryMonitor: MemoryDataModel
@@ -116,41 +117,57 @@ struct MemoryStatsRow: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
 
-            VStack(spacing: 8) {
-                HStack(alignment: .lastTextBaseline, spacing: 8) {
-                    Text("\(Int(value))%")
-                        .font(.system(size: 48, weight: .semibold))
-                        .foregroundStyle(colorForPercentage(value))
-
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-
-                // Progress bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.secondary.opacity(0.15))
-                            .frame(height: 8)
-
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(colorForPercentage(value))
-                            .frame(width: geometry.size.width * CGFloat(value / 100.0), height: 8)
-                    }
-                }
-                .frame(height: 8)
-                .padding(.horizontal, 16)
-
-                HStack {
-                    Text("\(used) of \(total)")
-                        .font(.system(size: 12, weight: .regular))
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Used")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
-
-                    Spacer()
+                    Text(used)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+
+                Divider()
+                    .frame(height: 30)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Total")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text(total)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Pressure")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(value))%")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(colorForPercentage(value))
+                        .monospacedDigit()
+                }
             }
+            .padding(.horizontal, 16)
+
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.15))
+                        .frame(height: 8)
+
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(colorForPercentage(value))
+                        .frame(width: geometry.size.width * CGFloat(value / 100.0), height: 8)
+                }
+            }
+            .frame(height: 8)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
         }
     }
 
@@ -267,49 +284,21 @@ struct ProcessRow: View {
     let percentage: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(name)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+        HStack {
+            Text(name)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
 
-                Spacer()
+            Spacer()
 
-                Text(String(format: "%.1f MB", memoryMB))
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-
-            // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.secondary.opacity(0.15))
-                        .frame(height: 6)
-
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(colorForPercentage(percentage))
-                        .frame(width: geometry.size.width * CGFloat(min(percentage, 100.0) / 100.0), height: 6)
-                }
-            }
-            .frame(height: 6)
+            Text(String(format: "%.1f MB", memoryMB))
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-    }
-
-    private func colorForPercentage(_ percentage: Double) -> Color {
-        if percentage > 15 {
-            return .red
-        } else if percentage > 10 {
-            return .orange
-        } else if percentage > 5 {
-            return .yellow
-        } else {
-            return .blue
-        }
     }
 }
 
@@ -406,10 +395,22 @@ public class MemoryDataModel: ObservableObject {
     private let processMonitor = ProcessMemoryMonitor()
     private let cpuMonitor = CPUMonitor()
     private var totalPhysicalMemory: UInt64 = 0
+    private var updateTimer: Timer?
+
+    public var statusBarTitle: String {
+        "􀫖 \(Int(usagePercentage))%"
+    }
 
     public init() {
         totalPhysicalMemory = memoryMonitor.fetchTotalPhysicalMemory()
         refresh()
+        startPeriodicUpdates()
+    }
+
+    private func startPeriodicUpdates() {
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.refresh()
+        }
     }
 
     public func refresh() {
