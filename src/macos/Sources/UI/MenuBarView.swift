@@ -6,6 +6,23 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            // CPU Stats Card
+            VStack(spacing: 0) {
+                CPUStatsRow(
+                    userPercentage: memoryMonitor.cpuUserPercentage,
+                    systemPercentage: memoryMonitor.cpuSystemPercentage,
+                    totalPercentage: memoryMonitor.cpuTotalPercentage
+                )
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+            )
+
             // Memory Stats Card
             VStack(spacing: 0) {
                 MemoryStatsRow(
@@ -138,6 +155,98 @@ struct MemoryStatsRow: View {
     }
 
     private func colorForPercentage(_ percentage: Double) -> Color {
+        if percentage > 85 {
+            return .red
+        } else if percentage > 70 {
+            return .orange
+        } else if percentage > 50 {
+            return .yellow
+        } else {
+            return .blue
+        }
+    }
+}
+
+// MARK: - CPU Stats Row Component
+
+struct CPUStatsRow: View {
+    let userPercentage: Double
+    let systemPercentage: Double
+    let totalPercentage: Double
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "cpu.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text("CPU")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("User")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(userPercentage))%")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                }
+
+                Divider()
+                    .frame(height: 30)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("System")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(systemPercentage))%")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Total")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(totalPercentage))%")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(colorForCPUPercentage(totalPercentage))
+                        .monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 16)
+
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.15))
+                        .frame(height: 8)
+
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(colorForCPUPercentage(totalPercentage))
+                        .frame(width: geometry.size.width * CGFloat(totalPercentage / 100.0), height: 8)
+                }
+            }
+            .frame(height: 8)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+        }
+    }
+
+    private func colorForCPUPercentage(_ percentage: Double) -> Color {
         if percentage > 85 {
             return .red
         } else if percentage > 70 {
@@ -288,8 +397,14 @@ public class MemoryDataModel: ObservableObject {
     @Published public var usedMemoryFormatted: String = "0 GB"
     @Published public var topProcesses: [ProcessMemoryMonitor.ProcessDetails] = []
 
+    @Published public var cpuUserPercentage: Double = 0.0
+    @Published public var cpuSystemPercentage: Double = 0.0
+    @Published public var cpuTotalPercentage: Double = 0.0
+    @Published public var topCPUProcesses: [CPUMonitor.ProcessCPUDetails] = []
+
     private let memoryMonitor = SystemMemoryMonitor()
     private let processMonitor = ProcessMemoryMonitor()
+    private let cpuMonitor = CPUMonitor()
     private var totalPhysicalMemory: UInt64 = 0
 
     public init() {
@@ -299,6 +414,7 @@ public class MemoryDataModel: ObservableObject {
 
     public func refresh() {
         guard let breakdown = memoryMonitor.fetchMemoryBreakdown() else { return }
+        let cpuUsage = cpuMonitor.fetchCPUUsage()
 
         DispatchQueue.main.async {
             self.usagePercentage = breakdown.usage_percentage
@@ -315,6 +431,14 @@ public class MemoryDataModel: ObservableObject {
                 limit: 5,
                 totalPhysicalMemory: self.totalPhysicalMemory
             )
+
+            if let cpuUsage = cpuUsage {
+                self.cpuUserPercentage = cpuUsage.userPercentage
+                self.cpuSystemPercentage = cpuUsage.systemPercentage
+                self.cpuTotalPercentage = cpuUsage.totalPercentage
+            }
+
+            self.topCPUProcesses = self.cpuMonitor.fetchTopCPUProcesses(limit: 5)
         }
     }
 }

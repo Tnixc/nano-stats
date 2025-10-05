@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) void {
         "src/macos/Sources/Core/Memory/MemoryTypes.swift",
         "src/macos/Sources/Core/Memory/SystemMemoryMonitor.swift",
         "src/macos/Sources/Core/Memory/ProcessMemoryMonitor.swift",
+        "src/macos/Sources/Core/CPU/CPUMonitor.swift",
         // UI files
         "src/macos/Sources/UI/MenuBarView.swift",
         // App files
