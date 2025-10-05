@@ -12,7 +12,8 @@ struct MenuBarView: View {
                 CPUStatsRow(
                     userPercentage: memoryMonitor.cpuUserPercentage,
                     systemPercentage: memoryMonitor.cpuSystemPercentage,
-                    totalPercentage: memoryMonitor.cpuTotalPercentage
+                    totalPercentage: memoryMonitor.cpuTotalPercentage,
+                    history: memoryMonitor.cpuHistory
                 )
             }
             .background(
@@ -27,10 +28,8 @@ struct MenuBarView: View {
             // Memory Stats Card
             VStack(spacing: 0) {
                 MemoryStatsRow(
-                    label: "Memory Pressure",
-                    value: memoryMonitor.usagePercentage,
-                    total: memoryMonitor.totalMemoryFormatted,
-                    used: memoryMonitor.usedMemoryFormatted
+                    memoryBreakdown: memoryMonitor.memoryBreakdown,
+                    usagePercentage: memoryMonitor.usagePercentage
                 )
             }
             .background(
@@ -96,19 +95,17 @@ struct MenuBarView: View {
 // MARK: - Memory Stats Row Component
 
 struct MemoryStatsRow: View {
-    let label: String
-    let value: Double
-    let total: String
-    let used: String
+    let memoryBreakdown: SystemMemoryMonitor.MemoryBreakdown?
+    let usagePercentage: Double
 
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Image(systemName: "memorychip.fill")
+                Image(systemName: "memorychip")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.secondary)
 
-                Text(label)
+                Text("RAM")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
 
@@ -117,69 +114,121 @@ struct MemoryStatsRow: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Used")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text(used)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.primary)
-                }
-
-                Divider()
-                    .frame(height: 30)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Total")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text(total)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.primary)
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 4) {
+            // Pressure bar
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
                     Text("Pressure")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
-                    Text("\(Int(value))%")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(colorForPercentage(value))
+                    
+                    Spacer()
+                    
+                    Text("\(Int(usagePercentage))%")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
                         .monospacedDigit()
                 }
-            }
-            .padding(.horizontal, 16)
+                
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.secondary.opacity(0.2))
+                            .frame(height: 6)
 
-            // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.15))
-                        .frame(height: 8)
-
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(colorForPercentage(value))
-                        .frame(width: geometry.size.width * CGFloat(value / 100.0), height: 8)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.orange)
+                            .frame(width: geometry.size.width * CGFloat(usagePercentage / 100.0), height: 6)
+                    }
                 }
+                .frame(height: 6)
             }
-            .frame(height: 8)
             .padding(.horizontal, 16)
-            .padding(.bottom, 12)
-        }
-    }
 
-    private func colorForPercentage(_ percentage: Double) -> Color {
-        if percentage > 85 {
-            return .red
-        } else if percentage > 70 {
-            return .orange
-        } else if percentage > 50 {
-            return .yellow
-        } else {
-            return .blue
+            if let breakdown = memoryBreakdown {
+                VStack(alignment: .leading, spacing: 8) {
+                    MemoryDetailRow(
+                        label: "Active",
+                        value: formatBytes(breakdown.active_bytes),
+                        showBar: false
+                    )
+                    
+                    MemoryDetailRow(
+                        label: "Wired",
+                        value: formatBytes(breakdown.wired_bytes),
+                        showBar: false
+                    )
+                    
+                    MemoryDetailRow(
+                        label: "Available",
+                        value: formatBytes(breakdown.free_bytes),
+                        showBar: false
+                    )
+                    
+                    MemoryDetailRow(
+                        label: "Compressed",
+                        value: formatBytes(breakdown.compressed_bytes),
+                        showBar: false
+                    )
+                    
+                    MemoryDetailRow(
+                        label: "Swap File",
+                        value: formatBytes(breakdown.swap_used_bytes),
+                        showBar: true,
+                        barPercentage: breakdown.swap_total_bytes > 0 ? 
+                            Double(breakdown.swap_used_bytes) / Double(breakdown.swap_total_bytes) * 100.0 : 0
+                    )
+                }
+                .padding(.horizontal, 16)
+            }
+            
+            Spacer().frame(height: 4)
+        }
+        .padding(.bottom, 12)
+    }
+    
+    private func formatBytes(_ bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB]
+        formatter.countStyle = .memory
+        formatter.zeroPadsFractionDigits = false
+        return formatter.string(fromByteCount: Int64(bytes))
+    }
+}
+
+struct MemoryDetailRow: View {
+    let label: String
+    let value: String
+    let showBar: Bool
+    var barPercentage: Double = 0
+    
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 100, alignment: .leading)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .monospacedDigit()
+            
+            if showBar {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.secondary.opacity(0.2))
+                            .frame(width: 80, height: 4)
+
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.orange)
+                            .frame(width: 80 * CGFloat(min(barPercentage, 100.0) / 100.0), height: 4)
+                    }
+                }
+                .frame(width: 80, height: 4)
+            }
         }
     }
 }
@@ -190,11 +239,12 @@ struct CPUStatsRow: View {
     let userPercentage: Double
     let systemPercentage: Double
     let totalPercentage: Double
+    let history: [Double]
 
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Image(systemName: "cpu.fill")
+                Image(systemName: "cpu")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.secondary)
 
@@ -207,71 +257,91 @@ struct CPUStatsRow: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("User")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("\(Int(userPercentage))%")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .monospacedDigit()
+            // Sparkline chart
+            CPUSparklineChart(history: history)
+                .frame(height: 40)
+                .padding(.horizontal, 16)
+
+            // User percentage bar
+            HStack(spacing: 8) {
+                Text("User")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 60, alignment: .leading)
+                
+                Text("\(Int(userPercentage))%")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .monospacedDigit()
+                    .frame(width: 40, alignment: .trailing)
+                
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.secondary.opacity(0.2))
+                            .frame(height: 6)
+
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.orange)
+                            .frame(width: geometry.size.width * CGFloat(userPercentage / 100.0), height: 6)
+                    }
                 }
-
-                Divider()
-                    .frame(height: 30)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("System")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("\(Int(systemPercentage))%")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .monospacedDigit()
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("Total")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("\(Int(totalPercentage))%")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(colorForCPUPercentage(totalPercentage))
-                        .monospacedDigit()
-                }
+                .frame(height: 6)
             }
             .padding(.horizontal, 16)
 
-            // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.15))
-                        .frame(height: 8)
+            // System percentage bar
+            HStack(spacing: 8) {
+                Text("System")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 60, alignment: .leading)
+                
+                Text("\(Int(systemPercentage))%")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .monospacedDigit()
+                    .frame(width: 40, alignment: .trailing)
+                
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.secondary.opacity(0.2))
+                            .frame(height: 6)
 
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(colorForCPUPercentage(totalPercentage))
-                        .frame(width: geometry.size.width * CGFloat(totalPercentage / 100.0), height: 8)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.orange)
+                            .frame(width: geometry.size.width * CGFloat(systemPercentage / 100.0), height: 6)
+                    }
                 }
+                .frame(height: 6)
             }
-            .frame(height: 8)
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
     }
+}
 
-    private func colorForCPUPercentage(_ percentage: Double) -> Color {
-        if percentage > 85 {
-            return .red
-        } else if percentage > 70 {
-            return .orange
-        } else if percentage > 50 {
-            return .yellow
-        } else {
-            return .blue
+// MARK: - CPU Sparkline Chart
+
+struct CPUSparklineChart: View {
+    let history: [Double]
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let maxValue = max(history.max() ?? 1.0, 1.0)
+            let barWidth = geometry.size.width / CGFloat(history.count)
+            
+            HStack(alignment: .bottom, spacing: 1) {
+                ForEach(Array(history.enumerated()), id: \.offset) { index, value in
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.orange)
+                        .frame(
+                            width: max(barWidth - 1, 1),
+                            height: max(geometry.size.height * CGFloat(value / maxValue), 2)
+                        )
+                }
+            }
         }
     }
 }
@@ -385,10 +455,12 @@ public class MemoryDataModel: ObservableObject {
     @Published public var totalMemoryFormatted: String = "0 GB"
     @Published public var usedMemoryFormatted: String = "0 GB"
     @Published public var topProcesses: [ProcessMemoryMonitor.ProcessDetails] = []
+    @Published public var memoryBreakdown: SystemMemoryMonitor.MemoryBreakdown?
 
     @Published public var cpuUserPercentage: Double = 0.0
     @Published public var cpuSystemPercentage: Double = 0.0
     @Published public var cpuTotalPercentage: Double = 0.0
+    @Published public var cpuHistory: [Double] = Array(repeating: 0, count: 60)
     @Published public var topCPUProcesses: [CPUMonitor.ProcessCPUDetails] = []
 
     private let memoryMonitor = SystemMemoryMonitor()
@@ -419,6 +491,7 @@ public class MemoryDataModel: ObservableObject {
 
         DispatchQueue.main.async {
             self.usagePercentage = breakdown.usage_percentage
+            self.memoryBreakdown = breakdown
 
             let formatter = ByteCountFormatter()
             formatter.allowedUnits = [.useGB]
@@ -437,6 +510,10 @@ public class MemoryDataModel: ObservableObject {
                 self.cpuUserPercentage = cpuUsage.userPercentage
                 self.cpuSystemPercentage = cpuUsage.systemPercentage
                 self.cpuTotalPercentage = cpuUsage.totalPercentage
+                
+                // Update CPU history
+                self.cpuHistory.removeFirst()
+                self.cpuHistory.append(cpuUsage.totalPercentage)
             }
 
             self.topCPUProcesses = self.cpuMonitor.fetchTopCPUProcesses(limit: 5)

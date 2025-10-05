@@ -15,6 +15,8 @@ public final class SystemMemoryMonitor {
         public let free_bytes: UInt64
         public let used_bytes: UInt64
         public let usage_percentage: Double
+        public let swap_total_bytes: UInt64
+        public let swap_used_bytes: UInt64
 
         public init(
             total_bytes: UInt64,
@@ -24,7 +26,9 @@ public final class SystemMemoryMonitor {
             compressed_bytes: UInt64,
             free_bytes: UInt64,
             used_bytes: UInt64,
-            usage_percentage: Double
+            usage_percentage: Double,
+            swap_total_bytes: UInt64,
+            swap_used_bytes: UInt64
         ) {
             self.total_bytes = total_bytes
             self.active_bytes = active_bytes
@@ -34,6 +38,8 @@ public final class SystemMemoryMonitor {
             self.free_bytes = free_bytes
             self.used_bytes = used_bytes
             self.usage_percentage = usage_percentage
+            self.swap_total_bytes = swap_total_bytes
+            self.swap_used_bytes = swap_used_bytes
         }
     }
 
@@ -57,6 +63,19 @@ public final class SystemMemoryMonitor {
         }
 
         return physical_memory
+    }
+
+    /// Fetches swap file usage information.
+    private func fetchSwapUsage() -> (total: UInt64, used: UInt64) {
+        var swapUsage = xsw_usage()
+        var size = MemoryLayout<xsw_usage>.size
+        let result = sysctlbyname("vm.swapusage", &swapUsage, &size, nil, 0)
+        
+        guard result == 0 else {
+            return (0, 0)
+        }
+        
+        return (swapUsage.xsu_total, swapUsage.xsu_used)
     }
 
     /// Fetches current system memory statistics.
@@ -98,6 +117,8 @@ public final class SystemMemoryMonitor {
             (total_physical_bytes > 0) ? Double(used_bytes) / Double(total_physical_bytes) : 0.0
         let usage_percentage = max(0.0, min(100.0, usage_fraction * 100.0))
 
+        let swap = fetchSwapUsage()
+
         return MemoryBreakdown(
             total_bytes: total_physical_bytes,
             active_bytes: active_bytes,
@@ -106,7 +127,9 @@ public final class SystemMemoryMonitor {
             compressed_bytes: compressed_bytes,
             free_bytes: free_bytes,
             used_bytes: used_bytes,
-            usage_percentage: usage_percentage
+            usage_percentage: usage_percentage,
+            swap_total_bytes: swap.total,
+            swap_used_bytes: swap.used
         )
     }
 }
