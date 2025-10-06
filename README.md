@@ -6,7 +6,7 @@
 -  CPU Usage - Shows CPU usage with user/system breakdown
 -  Battery - Shows battery level, uptime, and time remaining
 -  Compact Display - CPU usage graph and percentage in your menu bar
--  Launcha at login
+-  Launch at login
 
 ## Screenshots
 
