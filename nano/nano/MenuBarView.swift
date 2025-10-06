@@ -881,7 +881,7 @@ public class MemoryDataModel: ObservableObject {
     }
 
     private func startPeriodicUpdates() {
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.refresh()
         }
     }

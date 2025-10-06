@@ -20,8 +20,7 @@
 - ✅ RAM Usage - Shows memory usage with detailed breakdown
 - ✅ CPU Usage - Shows CPU usage with user/system breakdown
 - ✅ Battery - Shows battery level, uptime, and time remaining
-- ✅ Compact Display - Small footprint in your menu bar
-- ❌ Network Usage - Not implemented yet
+- ✅ Compact Display - CPU usage graph and percentage in your menu bar
 
 ## Installation
 
@@ -31,6 +30,6 @@
 
 ## Usage
 
-TBD
+Click the CPU graph and percentage in the menu bar to view detailed system stats including RAM, CPU, and battery information.
 
-<img src="nanostats-ram.png" alt="nanostats ram menu bar" width="25%" height="25%">
+<img src="nanostats-ram.png" alt="nanostats cpu graph menu bar" width="25%" height="25%">
