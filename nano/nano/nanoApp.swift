@@ -15,6 +15,7 @@ struct nanoApp: App {
         MenuBarExtra {
             MenuBarView(memoryMonitor: menuBarModel)
                 .background(.clear)
+                .focusable(false)
         } label: {
             MenuBarCPULabel(
                 cpuHistory: menuBarModel.cpuHistory,
@@ -36,6 +37,7 @@ struct MenuBarCPULabel: View {
             Image(nsImage: combinedImage)
                 .resizable()
                 .frame(width: 85, height: 16)
+                .focusable(false)
         }
     }
 

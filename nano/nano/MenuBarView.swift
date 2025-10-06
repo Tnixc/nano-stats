@@ -116,6 +116,8 @@ enum BatteryGradient {
 
 struct MenuBarView: View {
     @ObservedObject var memoryMonitor: MemoryDataModel
+    @StateObject private var launchAtLogin = LaunchAtLoginViewModel()
+    @State private var showingSettings = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -172,6 +174,36 @@ struct MenuBarView: View {
                     .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
             )
 
+            // Settings Card (if showing)
+            if showingSettings {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Settings")
+                            .font(.system(size: 13, weight: .semibold))
+                        Spacer()
+                    }
+                    
+                    Toggle(isOn: Binding(
+                        get: { launchAtLogin.isEnabled },
+                        set: { _ in launchAtLogin.toggle() }
+                    )) {
+                        Text("Launch at Login")
+                            .font(.system(size: 12))
+                    }
+                    .toggleStyle(.switch)
+                    .focusable(false)
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.secondary.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                )
+            }
+            
             // Bottom Actions
             HStack(spacing: 12) {
                 ControlCenterIconButton(
@@ -182,6 +214,15 @@ struct MenuBarView: View {
                 )
 
                 Spacer()
+                
+                ControlCenterIconButton(
+                    icon: "gearshape",
+                    action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showingSettings.toggle()
+                        }
+                    }
+                )
 
                 ControlCenterIconButton(
                     icon: "xmark",
@@ -194,6 +235,7 @@ struct MenuBarView: View {
         }
         .padding(16)
         .frame(width: 320)
+        .focusable(false)
     }
 }
 
@@ -806,6 +848,7 @@ struct ControlCenterIconButton: View {
             .scaleEffect(isPressed ? 0.95 : 1.0)
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
