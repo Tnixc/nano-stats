@@ -3,6 +3,43 @@ import Combine
 // macos/Sources/UI/MenuBarView.swift
 import SwiftUI
 
+// MARK: - Usage Color Constants
+
+enum UsageGradient {
+    static let colors: [Color] = [
+        Color(red: 0.0, green: 0.5, blue: 1.0), // Blue (0%)
+        Color(red: 0.0, green: 0.8, blue: 1.0), // Cyan (25%)
+        Color(red: 1.0, green: 0.9, blue: 0.0), // Yellow (50%)
+        Color(red: 1.0, green: 0.6, blue: 0.0), // Orange (75%)
+        Color(red: 1.0, green: 0.2, blue: 0.0), // Red (100%)
+    ]
+
+    static let gradient = LinearGradient(
+        colors: colors,
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+
+    static let verticalGradient = LinearGradient(
+        colors: colors,
+        startPoint: .bottom,
+        endPoint: .top
+    )
+
+    static func colorForPercentage(_ percentage: Double) -> Color {
+        let clamped = min(max(percentage, 0), 100)
+        let scaled = clamped / 25.0 // 0-4 range for 5 stops
+        let index = Int(scaled)
+        let _ = scaled - Double(index)
+
+        if index >= colors.count - 1 {
+            return colors.last ?? colors[0]
+        }
+
+        return colors[index]
+    }
+}
+
 struct MenuBarView: View {
     @ObservedObject var memoryMonitor: MemoryDataModel
 
@@ -204,13 +241,28 @@ struct MemoryStatsRow: View {
                             .fill(Color.secondary.opacity(0.2))
                             .frame(height: 6)
 
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.orange)
-                            .frame(
-                                width: geometry.size.width
-                                    * CGFloat(usagePercentage / 100.0),
-                                height: 6
-                            )
+                        LinearGradient(
+                            colors: UsageGradient.colors,
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(
+                            width: geometry.size.width,
+                            height: 6
+                        )
+                        .mask(
+                            HStack(spacing: 0) {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .frame(
+                                        width: geometry.size.width
+                                            * CGFloat(usagePercentage / 100.0),
+                                        height: 6
+                                    )
+                                Spacer()
+                            }
+                        )
+                        .shadow(color: UsageGradient.colorForPercentage(usagePercentage).opacity(0.6), radius: 4, x: 0, y: 0)
+                        .shadow(color: UsageGradient.colorForPercentage(usagePercentage).opacity(0.3), radius: 8, x: 0, y: 0)
                     }
                 }
                 .frame(height: 6)
@@ -234,7 +286,7 @@ struct MemoryStatsRow: View {
                             / Double(breakdown.swap_total_bytes) * 100.0 : 0
                     )
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 12)
                 .padding(.bottom, 12)
             }
         }
@@ -261,9 +313,11 @@ struct VerticalBarGraph: View {
             let barWidth = geometry.size.width / CGFloat(history.count)
 
             ZStack(alignment: .bottom) {
-                // Background
+                // Background with glow
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.secondary.opacity(0.15))
+                    .shadow(color: UsageGradient.colorForPercentage(history.max() ?? 0).opacity(0.5), radius: 12, x: 0, y: 0)
+                    .shadow(color: UsageGradient.colorForPercentage(history.max() ?? 0).opacity(0.3), radius: 6, x: 0, y: 0)
 
                 // Grid lines at 25%, 50%, 75%, 100%
                 Path { path in
@@ -289,17 +343,27 @@ struct VerticalBarGraph: View {
                     ForEach(Array(history.enumerated()), id: \.offset) {
                         _,
                             value in
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(Color.orange)
-                            .frame(
-                                width: max(barWidth - 1, 1),
-                                height: max(
-                                    height * CGFloat(value / maxValue),
-                                    2
-                                )
-                            )
+                        let barHeight = max(height * CGFloat(value / maxValue), 2)
+
+                        // Full height gradient masked to show only the bottom portion
+                        LinearGradient(
+                            colors: UsageGradient.colors,
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                        .frame(width: max(barWidth - 1, 1), height: height)
+                        .mask(
+                            VStack(spacing: 0) {
+                                Spacer(minLength: height - barHeight)
+                                RoundedRectangle(cornerRadius: 1)
+                                    .frame(height: barHeight)
+                            }
+                            .frame(height: height)
+                        )
+                        .shadow(color: UsageGradient.colorForPercentage(value).opacity(0.6), radius: 3, x: 0, y: 0)
+                        .shadow(color: UsageGradient.colorForPercentage(value).opacity(0.1), radius: 6, x: 0, y: 0)
                     }
-                }.padding(2)
+                }
             }
         }
         .frame(height: height)
@@ -331,13 +395,27 @@ struct MemoryDetailRow: View {
                             .fill(Color.secondary.opacity(0.2))
                             .frame(width: 80, height: 4)
 
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.orange)
-                            .frame(
-                                width: 80
-                                    * CGFloat(min(barPercentage, 100.0) / 100.0),
-                                height: 4
-                            )
+                        LinearGradient(
+                            colors: UsageGradient.colors,
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(
+                            width: 80,
+                            height: 4
+                        )
+                        .mask(
+                            HStack(spacing: 0) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .frame(
+                                        width: 80
+                                            * CGFloat(min(barPercentage, 100.0) / 100.0),
+                                        height: 4
+                                    )
+                                Spacer()
+                            }
+                        )
+                        .shadow(color: UsageGradient.colorForPercentage(barPercentage).opacity(0.5), radius: 3, x: 0, y: 0)
                     }
                 }
                 .frame(width: 80, height: 4)
@@ -394,13 +472,28 @@ struct CPUStatsRow: View {
                                 .fill(Color.secondary.opacity(0.2))
                                 .frame(height: 6)
 
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.orange)
-                                .frame(
-                                    width: geometry.size.width
-                                        * CGFloat(userPercentage / 100.0),
-                                    height: 6
-                                )
+                            LinearGradient(
+                                colors: UsageGradient.colors,
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(
+                                width: geometry.size.width,
+                                height: 6
+                            )
+                            .mask(
+                                HStack(spacing: 0) {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .frame(
+                                            width: geometry.size.width
+                                                * CGFloat(userPercentage / 100.0),
+                                            height: 6
+                                        )
+                                    Spacer()
+                                }
+                            )
+                            .shadow(color: UsageGradient.colorForPercentage(userPercentage).opacity(0.6), radius: 4, x: 0, y: 0)
+                            .shadow(color: UsageGradient.colorForPercentage(userPercentage).opacity(0.3), radius: 8, x: 0, y: 0)
                         }
                     }
                     .frame(height: 6)
@@ -425,13 +518,28 @@ struct CPUStatsRow: View {
                                 .fill(Color.secondary.opacity(0.2))
                                 .frame(height: 6)
 
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.orange)
-                                .frame(
-                                    width: geometry.size.width
-                                        * CGFloat(systemPercentage / 100.0),
-                                    height: 6
-                                )
+                            LinearGradient(
+                                colors: UsageGradient.colors,
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(
+                                width: geometry.size.width,
+                                height: 6
+                            )
+                            .mask(
+                                HStack(spacing: 0) {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .frame(
+                                            width: geometry.size.width
+                                                * CGFloat(systemPercentage / 100.0),
+                                            height: 6
+                                        )
+                                    Spacer()
+                                }
+                            )
+                            .shadow(color: UsageGradient.colorForPercentage(systemPercentage).opacity(0.6), radius: 4, x: 0, y: 0)
+                            .shadow(color: UsageGradient.colorForPercentage(systemPercentage).opacity(0.3), radius: 8, x: 0, y: 0)
                         }
                     }
                     .frame(height: 6)
@@ -484,8 +592,8 @@ struct ProcessRow: View {
 
             Spacer()
 
-            Text(String(format: "%.1f MB", memoryMB))
-                .font(.system(size: 12, weight: .regular))
+            Text("\(Int(percentage))%")
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
         }
@@ -641,7 +749,7 @@ public class MemoryDataModel: ObservableObject {
             )
 
             self.topProcesses = self.processMonitor.fetchTopMemoryProcesses(
-                limit: 5,
+                limit: 2,
                 totalPhysicalMemory: self.totalPhysicalMemory
             )
 
@@ -660,7 +768,7 @@ public class MemoryDataModel: ObservableObject {
             self.memoryHistory.append(breakdown.usage_percentage)
 
             self.topCPUProcesses = self.cpuMonitor.fetchTopCPUProcesses(
-                limit: 5
+                limit: 2
             )
         }
     }

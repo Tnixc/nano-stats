@@ -121,78 +121,53 @@ public final class CPUMonitor {
 
     /// Fetches top processes by CPU usage.
     public func fetchTopCPUProcesses(limit: Int) -> [ProcessCPUDetails] {
-        var processDetails: [ProcessCPUDetails] = []
-        var mib = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
-        var bufferSize = 0
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/ps")
+        process.arguments = ["-eo", "pid,pcpu,comm", "-r"]
 
-        // Get buffer size
-        var sysctl_result = sysctl(&mib, UInt32(mib.count), nil, &bufferSize, nil, 0)
-        guard sysctl_result == 0, bufferSize > 0 else { return [] }
+        let pipe = Pipe()
+        process.standardOutput = pipe
 
-        // Allocate buffer
-        let buffer = UnsafeMutablePointer<kinfo_proc>.allocate(capacity: bufferSize)
-        defer { buffer.deallocate() }
+        do {
+            try process.run()
+            process.waitUntilExit()
 
-        // Get process info
-        sysctl_result = sysctl(&mib, UInt32(mib.count), buffer, &bufferSize, nil, 0)
-        guard sysctl_result == 0 else { return [] }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return [] }
 
-        let processCount = bufferSize / MemoryLayout<kinfo_proc>.size
+            var processDetails: [ProcessCPUDetails] = []
 
-        for i in 0 ..< processCount {
-            let info = buffer.advanced(by: i).pointee
-            let pid = info.kp_proc.p_pid
+            // Skip header line
+            let lines = output.split(separator: "\n").dropFirst()
 
-            guard pid > 0 else { continue }
+            for line in lines {
+                let components = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
+                guard components.count >= 3 else { continue }
 
-            // Get task info for CPU usage
-            var taskInfo = proc_taskinfo()
-            let taskInfoSize = MemoryLayout<proc_taskinfo>.size
+                guard let pid = pid_t(components[0]),
+                      let cpuPercentage = Double(components[1]) else { continue }
 
-            let bytesCopied = proc_pidinfo(
-                pid,
-                PROC_PIDTASKINFO,
-                0,
-                &taskInfo,
-                Int32(taskInfoSize)
-            )
+                let command = String(components[2])
+                let processName = URL(fileURLWithPath: String(command)).lastPathComponent
 
-            guard bytesCopied == taskInfoSize else { continue }
-
-            // Get process name
-            var nameBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
-            let pathResult = proc_pidpath(pid, &nameBuffer, UInt32(nameBuffer.count))
-
-            var processName: String
-            if pathResult > 0 {
-                let path = String(cString: nameBuffer)
-                processName = URL(fileURLWithPath: path).lastPathComponent
-            } else {
-                processName = withUnsafeBytes(of: info.kp_proc.p_comm) { bytes in
-                    let ptr = bytes.baseAddress!.assumingMemoryBound(to: CChar.self)
-                    return String(cString: ptr)
+                // Only include processes with meaningful CPU usage
+                if cpuPercentage > 0.1 {
+                    let details = ProcessCPUDetails(
+                        pid: pid,
+                        name: processName,
+                        cpuPercentage: min(100.0, cpuPercentage)
+                    )
+                    processDetails.append(details)
                 }
 
-                if processName.isEmpty {
-                    processName = "pid-\(pid)"
+                if processDetails.count >= limit {
+                    break
                 }
             }
 
-            // Calculate CPU percentage
-            let totalTime = taskInfo.pti_total_user + taskInfo.pti_total_system
-            let cpuPercentage = (Double(totalTime) / 10_000_000.0) // Convert to percentage
-
-            if cpuPercentage > 0.1 {
-                let details = ProcessCPUDetails(
-                    pid: pid,
-                    name: processName,
-                    cpuPercentage: min(100.0, cpuPercentage)
-                )
-                processDetails.append(details)
-            }
+            return processDetails
+        } catch {
+            return []
         }
-
-        processDetails.sort()
-        return Array(processDetails.prefix(limit))
     }
 }
