@@ -18,10 +18,9 @@
 ## Features
 
 - ✅ RAM Usage - Shows memory usage with detailed breakdown
-- ✅ Process List - Displays top memory-consuming processes
-- ✅ PID Information - Hover over processes to see their PIDs
+- ✅ CPU Usage - Shows CPU usage with user/system breakdown
+- ✅ Battery - Shows battery level, uptime, and time remaining
 - ✅ Compact Display - Small footprint in your menu bar
-- ❌ CPU Usage - Not implemented yet
 - ❌ Network Usage - Not implemented yet
 
 ## Installation

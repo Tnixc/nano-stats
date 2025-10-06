@@ -40,6 +40,80 @@ enum UsageGradient {
     }
 }
 
+enum BatteryGradient {
+    static func gradientForPercentage(_ percentage: Double) -> LinearGradient {
+        let clamped = min(max(percentage, 0), 100)
+
+        if clamped >= 80 {
+            // 80%-100%: light green to green
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.6, green: 0.9, blue: 0.6), // Light green
+                    Color(red: 0.2, green: 0.8, blue: 0.2), // Green
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else if clamped >= 60 {
+            // 60%-80%: yellow to light green
+            return LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.9, blue: 0.0), // Yellow
+                    Color(red: 0.6, green: 0.9, blue: 0.6), // Light green
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else if clamped >= 40 {
+            // 40%-60%: orange to yellow
+            return LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.6, blue: 0.0), // Orange
+                    Color(red: 1.0, green: 0.9, blue: 0.0), // Yellow
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else if clamped >= 20 {
+            // 20%-40%: red to orange
+            return LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.2, blue: 0.0), // Red
+                    Color(red: 1.0, green: 0.6, blue: 0.0), // Orange
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else {
+            // 0%-20%: dark red to red
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.8, green: 0.1, blue: 0.1), // Dark red
+                    Color(red: 1.0, green: 0.2, blue: 0.0), // Red
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+    }
+
+    static func colorForPercentage(_ percentage: Double) -> Color {
+        let clamped = min(max(percentage, 0), 100)
+
+        if clamped >= 80 {
+            return Color(red: 0.2, green: 0.8, blue: 0.2) // Green
+        } else if clamped >= 60 {
+            return Color(red: 0.6, green: 0.9, blue: 0.6) // Light green
+        } else if clamped >= 40 {
+            return Color(red: 1.0, green: 0.9, blue: 0.0) // Yellow
+        } else if clamped >= 20 {
+            return Color(red: 1.0, green: 0.6, blue: 0.0) // Orange
+        } else {
+            return Color(red: 1.0, green: 0.2, blue: 0.0) // Red
+        }
+    }
+}
+
 struct MenuBarView: View {
     @ObservedObject var memoryMonitor: MemoryDataModel
 
@@ -80,93 +154,23 @@ struct MenuBarView: View {
                     .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
             )
 
-            // Top CPU Processes Card
-            if !memoryMonitor.topCPUProcesses.isEmpty {
-                VStack(spacing: 0) {
-                    HStack {
-                        Image(systemName: "cpu")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(.secondary)
-
-                        Text("Top CPU Processes")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-
-                    ForEach(
-                        Array(memoryMonitor.topCPUProcesses.enumerated()),
-                        id: \.element.pid
-                    ) { index, process in
-                        CPUProcessRow(
-                            name: process.name,
-                            cpuPercentage: process.cpuPercentage
-                        )
-
-                        if index < memoryMonitor.topCPUProcesses.count - 1 {
-                            Divider()
-                                .padding(.horizontal, 16)
-                        }
-                    }
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.secondary.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+            // Battery Stats Card
+            VStack(spacing: 0) {
+                BatteryStatsRow(
+                    batteryPercentage: memoryMonitor.batteryPercentage,
+                    isCharging: memoryMonitor.batteryIsCharging,
+                    timeRemaining: memoryMonitor.batteryTimeRemaining,
+                    uptime: memoryMonitor.systemUptime
                 )
             }
-
-            // Top Memory Processes Card
-            if !memoryMonitor.topProcesses.isEmpty {
-                VStack(spacing: 0) {
-                    HStack {
-                        Image(systemName: "memorychip")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(.secondary)
-
-                        Text("Top Memory Processes")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-
-                    ForEach(
-                        Array(memoryMonitor.topProcesses.enumerated()),
-                        id: \.element.pid
-                    ) { index, process in
-                        ProcessRow(
-                            name: process.name,
-                            memoryMB: Double(process.memory_usage_bytes)
-                                / (1024.0 * 1024.0),
-                            percentage: process.memory_usage_percentage
-                        )
-
-                        if index < memoryMonitor.topProcesses.count - 1 {
-                            Divider()
-                                .padding(.horizontal, 16)
-                        }
-                    }
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.secondary.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                )
-            }
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+            )
 
             // Bottom Actions
             HStack(spacing: 12) {
@@ -261,11 +265,25 @@ struct MemoryStatsRow: View {
                                 Spacer()
                             }
                         )
-                        .shadow(color: UsageGradient.colorForPercentage(usagePercentage).opacity(0.6), radius: 4, x: 0, y: 0)
-                        .shadow(color: UsageGradient.colorForPercentage(usagePercentage).opacity(0.3), radius: 8, x: 0, y: 0)
+                        .shadow(
+                            color: UsageGradient.colorForPercentage(
+                                usagePercentage
+                            ).opacity(0.6),
+                            radius: 4,
+                            x: 0,
+                            y: 0
+                        )
+                        .shadow(
+                            color: UsageGradient.colorForPercentage(
+                                usagePercentage
+                            ).opacity(0.3),
+                            radius: 8,
+                            x: 0,
+                            y: 0
+                        )
                     }
-                }
-                .frame(height: 6)
+                }.padding(.horizontal, 2)
+                    .frame(height: 6)
             }
             .padding(.horizontal, 16)
 
@@ -286,7 +304,7 @@ struct MemoryStatsRow: View {
                             / Double(breakdown.swap_total_bytes) * 100.0 : 0
                     )
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 16)
                 .padding(.bottom, 12)
             }
         }
@@ -316,8 +334,22 @@ struct VerticalBarGraph: View {
                 // Background with glow
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.secondary.opacity(0.15))
-                    .shadow(color: UsageGradient.colorForPercentage(history.max() ?? 0).opacity(0.5), radius: 12, x: 0, y: 0)
-                    .shadow(color: UsageGradient.colorForPercentage(history.max() ?? 0).opacity(0.3), radius: 6, x: 0, y: 0)
+                    .shadow(
+                        color: UsageGradient.colorForPercentage(
+                            history.max() ?? 0
+                        ).opacity(0.5),
+                        radius: 12,
+                        x: 0,
+                        y: 0
+                    )
+                    .shadow(
+                        color: UsageGradient.colorForPercentage(
+                            history.max() ?? 0
+                        ).opacity(0.3),
+                        radius: 6,
+                        x: 0,
+                        y: 0
+                    )
 
                 // Grid lines at 25%, 50%, 75%, 100%
                 Path { path in
@@ -343,7 +375,10 @@ struct VerticalBarGraph: View {
                     ForEach(Array(history.enumerated()), id: \.offset) {
                         _,
                             value in
-                        let barHeight = max(height * CGFloat(value / maxValue), 2)
+                        let barHeight = max(
+                            height * CGFloat(value / maxValue),
+                            2
+                        )
 
                         // Full height gradient masked to show only the bottom portion
                         LinearGradient(
@@ -360,8 +395,20 @@ struct VerticalBarGraph: View {
                             }
                             .frame(height: height)
                         )
-                        .shadow(color: UsageGradient.colorForPercentage(value).opacity(0.6), radius: 3, x: 0, y: 0)
-                        .shadow(color: UsageGradient.colorForPercentage(value).opacity(0.1), radius: 6, x: 0, y: 0)
+                        .shadow(
+                            color: UsageGradient.colorForPercentage(value)
+                                .opacity(0.6),
+                            radius: 3,
+                            x: 0,
+                            y: 0
+                        )
+                        .shadow(
+                            color: UsageGradient.colorForPercentage(value)
+                                .opacity(0.1),
+                            radius: 6,
+                            x: 0,
+                            y: 0
+                        )
                     }
                 }
             }
@@ -409,13 +456,23 @@ struct MemoryDetailRow: View {
                                 RoundedRectangle(cornerRadius: 2)
                                     .frame(
                                         width: 80
-                                            * CGFloat(min(barPercentage, 100.0) / 100.0),
+                                            * CGFloat(
+                                                min(barPercentage, 100.0)
+                                                    / 100.0
+                                            ),
                                         height: 4
                                     )
                                 Spacer()
                             }
                         )
-                        .shadow(color: UsageGradient.colorForPercentage(barPercentage).opacity(0.5), radius: 3, x: 0, y: 0)
+                        .shadow(
+                            color: UsageGradient.colorForPercentage(
+                                barPercentage
+                            ).opacity(0.5),
+                            radius: 3,
+                            x: 0,
+                            y: 0
+                        )
                     }
                 }
                 .frame(width: 80, height: 4)
@@ -486,14 +543,30 @@ struct CPUStatsRow: View {
                                     RoundedRectangle(cornerRadius: 3)
                                         .frame(
                                             width: geometry.size.width
-                                                * CGFloat(userPercentage / 100.0),
+                                                * CGFloat(
+                                                    userPercentage / 100.0
+                                                ),
                                             height: 6
                                         )
                                     Spacer()
                                 }
                             )
-                            .shadow(color: UsageGradient.colorForPercentage(userPercentage).opacity(0.6), radius: 4, x: 0, y: 0)
-                            .shadow(color: UsageGradient.colorForPercentage(userPercentage).opacity(0.3), radius: 8, x: 0, y: 0)
+                            .shadow(
+                                color: UsageGradient.colorForPercentage(
+                                    userPercentage
+                                ).opacity(0.6),
+                                radius: 4,
+                                x: 0,
+                                y: 0
+                            )
+                            .shadow(
+                                color: UsageGradient.colorForPercentage(
+                                    userPercentage
+                                ).opacity(0.3),
+                                radius: 8,
+                                x: 0,
+                                y: 0
+                            )
                         }
                     }
                     .frame(height: 6)
@@ -532,14 +605,30 @@ struct CPUStatsRow: View {
                                     RoundedRectangle(cornerRadius: 3)
                                         .frame(
                                             width: geometry.size.width
-                                                * CGFloat(systemPercentage / 100.0),
+                                                * CGFloat(
+                                                    systemPercentage / 100.0
+                                                ),
                                             height: 6
                                         )
                                     Spacer()
                                 }
                             )
-                            .shadow(color: UsageGradient.colorForPercentage(systemPercentage).opacity(0.6), radius: 4, x: 0, y: 0)
-                            .shadow(color: UsageGradient.colorForPercentage(systemPercentage).opacity(0.3), radius: 8, x: 0, y: 0)
+                            .shadow(
+                                color: UsageGradient.colorForPercentage(
+                                    systemPercentage
+                                ).opacity(0.6),
+                                radius: 4,
+                                x: 0,
+                                y: 0
+                            )
+                            .shadow(
+                                color: UsageGradient.colorForPercentage(
+                                    systemPercentage
+                                ).opacity(0.3),
+                                radius: 8,
+                                x: 0,
+                                y: 0
+                            )
                         }
                     }
                     .frame(height: 6)
@@ -551,54 +640,126 @@ struct CPUStatsRow: View {
     }
 }
 
-// MARK: - CPU Process Row Component
+// MARK: - Battery Stats Row Component
 
-struct CPUProcessRow: View {
-    let name: String
-    let cpuPercentage: Double
-
-    var body: some View {
-        HStack {
-            Text(name)
-                .font(.system(size: 13))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-
-            Spacer()
-
-            Text("\(Int(cpuPercentage))%")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-    }
-}
-
-// MARK: - Process Row Component
-
-struct ProcessRow: View {
-    let name: String
-    let memoryMB: Double
-    let percentage: Double
+struct BatteryStatsRow: View {
+    let batteryPercentage: Double
+    let isCharging: Bool
+    let timeRemaining: TimeInterval?
+    let uptime: TimeInterval
 
     var body: some View {
-        HStack {
-            Text(name)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-
-            Spacer()
-
-            Text("\(Int(percentage))%")
-                .font(.system(size: 13, weight: .medium))
+        VStack(spacing: 8) {
+            HStack {
+                Image(
+                    systemName: isCharging ? "battery.100.bolt" : "battery.100"
+                )
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.secondary)
-                .monospacedDigit()
+
+                Text("Battery")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            // Battery percentage bar
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 16) {
+                    Text(isCharging ? "Charging" : "Battery")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(height: 6)
+
+                            BatteryGradient.gradientForPercentage(
+                                batteryPercentage
+                            )
+                            .frame(
+                                width: geometry.size.width,
+                                height: 6
+                            )
+                            .mask(
+                                HStack(spacing: 0) {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .frame(
+                                            width: geometry.size.width
+                                                * CGFloat(
+                                                    batteryPercentage / 100.0
+                                                ),
+                                            height: 6
+                                        )
+                                    Spacer()
+                                }
+                            )
+                            .shadow(
+                                color: BatteryGradient.colorForPercentage(
+                                    batteryPercentage
+                                ).opacity(0.6),
+                                radius: 4,
+                                x: 0,
+                                y: 0
+                            )
+                            .shadow(
+                                color: BatteryGradient.colorForPercentage(
+                                    batteryPercentage
+                                ).opacity(0.3),
+                                radius: 8,
+                                x: 0,
+                                y: 0
+                            )
+                        }
+                    }
+                    .frame(height: 6)
+
+                    Text("\(Int(batteryPercentage))%")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 16)
+
+            // Uptime and time remaining
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Uptime")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(BatteryMonitor.formatUptime(uptime))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                }
+
+                HStack {
+                    Text(isCharging ? "Time to Full" : "Time Left")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 80, alignment: .leading)
+                    Spacer()
+                    Text(
+                        BatteryMonitor.formatTimeRemaining(
+                            timeRemaining,
+                            isCharging: isCharging
+                        )
+                    )
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
     }
 }
 
@@ -690,8 +851,6 @@ public class MemoryDataModel: ObservableObject {
     @Published public var usagePercentage: Double = 0.0
     @Published public var totalMemoryFormatted: String = "0 GB"
     @Published public var usedMemoryFormatted: String = "0 GB"
-    @Published public var topProcesses: [ProcessMemoryMonitor.ProcessDetails] =
-        []
     @Published public var memoryBreakdown: SystemMemoryMonitor.MemoryBreakdown?
     @Published public var memoryHistory: [Double] = Array(
         repeating: 0,
@@ -702,17 +861,18 @@ public class MemoryDataModel: ObservableObject {
     @Published public var cpuSystemPercentage: Double = 0.0
     @Published public var cpuTotalPercentage: Double = 0.0
     @Published public var cpuHistory: [Double] = Array(repeating: 0, count: 60)
-    @Published public var topCPUProcesses: [CPUMonitor.ProcessCPUDetails] = []
+
+    @Published public var batteryPercentage: Double = 0.0
+    @Published public var batteryIsCharging: Bool = false
+    @Published public var batteryTimeRemaining: TimeInterval? = nil
+    @Published public var systemUptime: TimeInterval = 0.0
+    @Published public var statusBarTitle: String = "􀫖 0%"
 
     private let memoryMonitor = SystemMemoryMonitor()
-    private let processMonitor = ProcessMemoryMonitor()
     private let cpuMonitor = CPUMonitor()
+    private let batteryMonitor = BatteryMonitor()
     private var totalPhysicalMemory: UInt64 = 0
     private var updateTimer: Timer?
-
-    public var statusBarTitle: String {
-        "􀫖 \(Int(usagePercentage))%"
-    }
 
     public init() {
         totalPhysicalMemory = memoryMonitor.fetchTotalPhysicalMemory()
@@ -731,6 +891,7 @@ public class MemoryDataModel: ObservableObject {
             return
         }
         let cpuUsage = cpuMonitor.fetchCPUUsage()
+        let batteryInfo = batteryMonitor.fetchBatteryInfo()
 
         DispatchQueue.main.async {
             self.usagePercentage = breakdown.usage_percentage
@@ -748,11 +909,6 @@ public class MemoryDataModel: ObservableObject {
                 fromByteCount: Int64(breakdown.used_bytes)
             )
 
-            self.topProcesses = self.processMonitor.fetchTopMemoryProcesses(
-                limit: 2,
-                totalPhysicalMemory: self.totalPhysicalMemory
-            )
-
             if let cpuUsage = cpuUsage {
                 self.cpuUserPercentage = cpuUsage.userPercentage
                 self.cpuSystemPercentage = cpuUsage.systemPercentage
@@ -767,9 +923,16 @@ public class MemoryDataModel: ObservableObject {
             self.memoryHistory.removeFirst()
             self.memoryHistory.append(breakdown.usage_percentage)
 
-            self.topCPUProcesses = self.cpuMonitor.fetchTopCPUProcesses(
-                limit: 2
-            )
+            // Update status bar title
+            self.statusBarTitle = "􀫖 \(Int(breakdown.usage_percentage))%"
+
+            // Update battery info
+            if let batteryInfo = batteryInfo {
+                self.batteryPercentage = batteryInfo.percentage
+                self.batteryIsCharging = batteryInfo.isCharging
+                self.batteryTimeRemaining = batteryInfo.timeRemaining
+                self.systemUptime = batteryInfo.uptime
+            }
         }
     }
 }

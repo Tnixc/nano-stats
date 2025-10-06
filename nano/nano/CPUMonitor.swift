@@ -17,31 +17,6 @@ public final class CPUMonitor {
         }
     }
 
-    /// Holds information about a process's CPU usage.
-    public struct ProcessCPUDetails: Comparable, Hashable {
-        public let pid: pid_t
-        public let name: String
-        public let cpuPercentage: Double
-
-        public init(pid: pid_t, name: String, cpuPercentage: Double) {
-            self.pid = pid
-            self.name = name
-            self.cpuPercentage = cpuPercentage
-        }
-
-        public static func < (lhs: ProcessCPUDetails, rhs: ProcessCPUDetails) -> Bool {
-            return lhs.cpuPercentage > rhs.cpuPercentage
-        }
-
-        public static func == (lhs: ProcessCPUDetails, rhs: ProcessCPUDetails) -> Bool {
-            return lhs.pid == rhs.pid
-        }
-
-        public func hash(into hasher: inout Hasher) {
-            hasher.combine(pid)
-        }
-    }
-
     private var previousCPUInfo: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
     private var lastUpdateTime: Date?
 
@@ -117,57 +92,5 @@ public final class CPUMonitor {
             systemPercentage: max(0, min(100, systemPercentage)),
             totalPercentage: max(0, min(100, totalPercentage))
         )
-    }
-
-    /// Fetches top processes by CPU usage.
-    public func fetchTopCPUProcesses(limit: Int) -> [ProcessCPUDetails] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-eo", "pid,pcpu,comm", "-r"]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return [] }
-
-            var processDetails: [ProcessCPUDetails] = []
-
-            // Skip header line
-            let lines = output.split(separator: "\n").dropFirst()
-
-            for line in lines {
-                let components = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
-                guard components.count >= 3 else { continue }
-
-                guard let pid = pid_t(components[0]),
-                      let cpuPercentage = Double(components[1]) else { continue }
-
-                let command = String(components[2])
-                let processName = URL(fileURLWithPath: String(command)).lastPathComponent
-
-                // Only include processes with meaningful CPU usage
-                if cpuPercentage > 0.1 {
-                    let details = ProcessCPUDetails(
-                        pid: pid,
-                        name: processName,
-                        cpuPercentage: min(100.0, cpuPercentage)
-                    )
-                    processDetails.append(details)
-                }
-
-                if processDetails.count >= limit {
-                    break
-                }
-            }
-
-            return processDetails
-        } catch {
-            return []
-        }
     }
 }
